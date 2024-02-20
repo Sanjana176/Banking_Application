@@ -28,6 +28,46 @@ def display_account_info(cursor, user_id):
         print("Balance:", account_info[2])
     else:
         print("Account not found.")
+
+# Function to display list of beneficiaries
+def list_beneficiaries(cursor, user_id):
+    query = "SELECT * FROM Beneficiaries WHERE user_id = %s"
+    cursor.execute(query, (user_id,))
+    beneficiaries = cursor.fetchall()
+    if beneficiaries:
+        print("List of Beneficiaries:")
+        for beneficiary in beneficiaries:
+            print("Name:", beneficiary[2])
+            print("Account Number:", beneficiary[3])
+            print("Bank Name:", beneficiary[4])
+    else:
+        print("No beneficiaries found.")
+
+# Function to display list of cards
+def list_cards(cursor, user_id):
+    query = "SELECT * FROM Cards WHERE user_id = %s"
+    cursor.execute(query, (user_id,))
+    cards = cursor.fetchall()
+    if cards:
+        print("List of Cards:")
+        for card in cards:
+            print("Card Type:", card[2])
+            print("Card Number:", card[3])
+            print("PIN:", card[4])
+            print("CVV:", card[5])
+    else:
+        print("No cards found.")
+
+# Function to add beneficiary
+def add_beneficiary(cursor, connection, user_id):
+    beneficiary_name = input("Enter beneficiary name: ")
+    account_number = input("Enter account number: ")
+    bank_name = input("Enter bank name: ")
+    query = "INSERT INTO Beneficiaries (user_id, beneficiary_name, account_number, bank_name) VALUES (%s, %s, %s, %s)"
+    data = (user_id, beneficiary_name, account_number, bank_name)
+    cursor.execute(query, data)
+    connection.commit()
+    print("Beneficiary added successfully.")
         
 def register_user():
     print("Registration Process:")
