@@ -68,7 +68,197 @@ def add_beneficiary(cursor, connection, user_id):
     cursor.execute(query, data)
     connection.commit()
     print("Beneficiary added successfully.")
+
+# Function to update account info
+def update_account_info(cursor, connection, user_id):
+    new_address = input("Enter new address: ")
+    new_mobile = input("Enter new mobile number: ")
+    
+    query = "UPDATE Users SET address = %s, mobile = %s WHERE id = %s"
+    data = (new_address, new_mobile, user_id)
+    cursor.execute(query, data)
+    connection.commit()
+    print("Account info updated successfully.")
+    query = "SELECT * FROM Users WHERE id = %s"
+    cursor.execute(query, (user_id,))
+    account_info = cursor.fetchone()
+    if account_info:
+        print("Updated Account Details:")
+        print("Address:", account_info[2])
+        print("Mobile:", account_info[4])
+    else:
+        print("Account not found.")
+
+
+
+
+
+# Function to transfer funds
+def transfer_funds(cursor, connection, user_id):
+    beneficiary_number = input("Enter beneficiary account number: ")
+    amount = Decimal(input("Enter amount to transfer: "))  # Convert amount to Decimal
+
+    # Check if the beneficiary account exists in the Beneficiaries table
+    query = "SELECT * FROM Beneficiaries WHERE user_id = %s AND account_number = %s"
+    cursor.execute(query, (user_id, beneficiary_number))
+    beneficiary = cursor.fetchone()
+    if not beneficiary:
+        print("Beneficiary account not found. Please add the beneficiary first.")
+        return
+
+    # Check if the user has sufficient balance
+    query = "SELECT balance FROM Accounts WHERE user_id = %s"
+    cursor.execute(query, (user_id,))
+    sender_balance = cursor.fetchone()[0]
+    if sender_balance < amount:
+        print("Insufficient balance. Transaction aborted.")
+        return
+
+    # Consume any unread results before executing the update query
+    cursor.fetchall()
+
+    # Deduct the transferred amount from the sender's account balance
+    new_sender_balance = sender_balance - amount
+    update_sender_query = "UPDATE Accounts SET balance = %s WHERE user_id = %s"
+    cursor.execute(update_sender_query, (new_sender_balance, user_id))
+    connection.commit()  # Consume the result
+
+    # Add the transferred amount to the beneficiary's account balance
+    update_beneficiary_query = "UPDATE Accounts SET balance = balance + %s WHERE user_id = %s"
+    cursor.execute(update_beneficiary_query, (amount, beneficiary[0]))
+
+    # Insert transaction record
+    insert_transaction_query = "INSERT INTO Transactions (sender_id, beneficiary_id, amount) VALUES (%s, %s, %s)"
+    cursor.execute(insert_transaction_query, (user_id, beneficiary[0], amount))
+
+    connection.commit()
+    print("Funds transferred successfully.")
+
+
+
+
+
+
+
+# Function to change MPIN
+def change_mpin(cursor, connection, user_id):
+    card_type = input("Enter card type (debit/credit): ")
+    new_pin = input("Enter new PIN: ")
+    query = "UPDATE Cards SET pin = %s WHERE user_id = %s AND card_type = %s"
+    data = (new_pin, user_id, card_type)
+    cursor.execute(query, data)
+    connection.commit()
+    print("MPIN changed successfully.")
+
+#function to check if a card already exists
+def card_number_exists(card_number):
+    try:
+        connection = connect_to_database()
+        cursor = connection.cursor()
+
+        query = "SELECT COUNT(*) FROM Cards WHERE card_number = %s"
+        cursor.execute(query, (card_number,))
+        count = cursor.fetchone()[0]
+
+        return count > 0
+    
+    except mysql.connector.Error as e:
+        print("Error checking card number:", e)
+        return False
+    
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
+# Function to register new credit card
+
+# Function to register a new credit card
+def register_new_credit_card(cursor, connection, user_id):
+    card_number = input("Enter card number: ")
+    card_type = input("Enter card type (debit/credit): ")
+    cvv = input("Enter CVV: ")
+    pin = input("Enter PIN: ")
+
+    # Check if the card number already exists in the database
+    if card_number_exists(card_number):
+        print("Card already registered.")
+        return
+    
+    try:
+        # Insert the new credit card details into the 'Cards' table
+        credit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, %s, %s, %s, %s)"
+        credit_card_data = (user_id, card_type, card_number, pin, cvv)
+        cursor.execute(credit_card_query, credit_card_data)
+        connection.commit()
+        print("New credit card registered successfully.")
+    
+    except mysql.connector.Error as e:
+        print("Error registering new credit card:", e)
+
+# Function to generate a random 12-digit card number
+def generate_card_number():
+    while True:
+        card_number = ''.join(str(random.randint(0, 9)) for _ in range(12))
+        if not card_number_exists(card_number):
+            return card_number
+
+def generate_cvv():
+    return ''.join(str(random.randint(0, 9)) for _ in range(3))
+
+def generate_pin():
+    return ''.join(str(random.randint(0, 9)) for _ in range(4))
+
+# Function to check if a CVV already exists in the database
+def cvv_exists(cvv):
+    try:
+        connection = connect_to_database()
+        cursor = connection.cursor()
+
+        query = "SELECT COUNT(*) FROM Cards WHERE cvv = %s"
+        cursor.execute(query, (cvv,))
+        count = cursor.fetchone()[0]
+
+        return count > 0
+    
+    except mysql.connector.Error as e:
+        print("Error checking CVV:", e)
+        return False
+    
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
+def generate_account_number():
+    while True:
+        # Generate a 12-digit account number
+        account_number = ''.join(str(random.randint(0, 9)) for _ in range(12))
         
+        # Check if the generated account number already exists in the database
+        if not account_number_exists(account_number):
+            return account_number
+
+def account_number_exists(account_number):
+    try:
+        connection = connect_to_database()
+        cursor = connection.cursor()
+
+        query = "SELECT COUNT(*) FROM Accounts WHERE account_number = %s"
+        cursor.execute(query, (account_number,))
+        count = cursor.fetchone()[0]
+
+        return count > 0
+    
+    except mysql.connector.Error as e:
+        print("Error checking account number:", e)
+        return True  # Consider the account number exists in case of error
+    
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
 def register_user():
     print("Registration Process:")
     username = input("Enter your username: ")
@@ -142,7 +332,9 @@ def register_user():
     finally:
         if connection:
             cursor.close()
-            connection.close()       
+            connection.close()
+
+
 #login function
 def login_user(cursor,connection):
     u = input("Enter Your Username : ")
@@ -177,7 +369,7 @@ def login_user(cursor,connection):
                         elif option == "6":
                             transfer_funds(cursor, connection, user_id)
                         elif option == "7":
-                            change_mpin(cursor, connection)
+                            change_mpin(cursor, connection, user_id)
                         elif option == "8":
                             register_new_credit_card(cursor, connection, user_id)
                         elif option == "9":
