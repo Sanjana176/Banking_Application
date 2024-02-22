@@ -1,11 +1,12 @@
-from decimal import Decimal
-import mysql.connector
-import random
+from decimal import Decimal 
+import mysql.connector      
+import random               
+import re
 
 # Connect to MySQL database
-def connect_to_database():
+def connect_to_database():   
     try:
-        connection = mysql.connector.connect(
+        connection = mysql.connector.connect( 
             host="localhost",
             port="3306",
             user="root",
@@ -17,11 +18,44 @@ def connect_to_database():
         print("Error connecting to MySQL database:", e)
         return None
 
+def validate_aadhar(aadhar):
+    # Aadhar should be 12 digits
+    if not re.match(r'^\d{12}$', aadhar):
+        return False
+    return True
+
+def validate_mobile(mobile):
+    # Mobile number should be 10 digits
+    if not re.match(r'^\d{10}$', mobile):
+        return False
+    return True
+
+def validate_username(username):
+    # Username should not include spaces or special characters, and should be limited to 15 characters
+    if not re.match(r'^[a-zA-Z0-9]{1,15}$', username):
+        return False
+    return True
+
+def validate_account_number(account_number):
+    # Account number should be exactly 12 digits and contain only numbers
+    if not re.match(r'^\d{12}$', account_number):
+        return False
+    return True
+
+def validate_password(password):
+    # Password should be at least 8 characters long and contain at least one special character
+    if len(password) < 8:
+        return False
+    # Updated regular expression to allow any characters
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False
+    return True
+
 # Function to display account info and balance
-def display_account_info(cursor, user_id):
-    query = "SELECT * FROM Accounts WHERE user_id = %s"
-    cursor.execute(query, (user_id,))
-    account_info = cursor.fetchone()
+def display_account_info(cursor, user_id):   
+    query = "SELECT * FROM Accounts WHERE user_id = %s"  
+    cursor.execute(query, (user_id,))      
+    account_info = cursor.fetchone()      
     if account_info:
         print("Account Info:")
         print("Account Number:", account_info[0])
@@ -29,11 +63,39 @@ def display_account_info(cursor, user_id):
     else:
         print("Account not found.")
 
+def add_funds(cursor, connection, user_id):
+    try:
+        # Get the current balance of the user's account
+        query = "SELECT balance FROM Accounts WHERE user_id = %s"
+        cursor.execute(query, (user_id,))
+        current_balance = cursor.fetchone()[0]
+
+        # Prompt the user to enter the amount to add
+        amount_to_add = Decimal(input("Enter the amount to add: "))
+        
+        # Validate the amount (must be positive)
+        if amount_to_add <= 0:
+            print("Invalid amount. Please enter a positive value.")
+            return
+
+        # Update the balance in the database
+        new_balance = current_balance + amount_to_add
+        update_query = "UPDATE Accounts SET balance = %s WHERE user_id = %s"
+        cursor.execute(update_query, (new_balance, user_id))
+        connection.commit()
+
+        print("Funds added successfully.")
+        print("New balance:", new_balance)
+    
+    except mysql.connector.Error as e:
+        connection.rollback()  # Roll back the transaction in case of error
+        print("Error adding funds:", e)
+
 # Function to display list of beneficiaries
 def list_beneficiaries(cursor, user_id):
     query = "SELECT * FROM Beneficiaries WHERE user_id = %s"
     cursor.execute(query, (user_id,))
-    beneficiaries = cursor.fetchall()
+    beneficiaries = cursor.fetchall()     #This line fetches all rows of the result of the executed query.
     if beneficiaries:
         print("List of Beneficiaries:")
         for beneficiary in beneficiaries:
@@ -61,14 +123,20 @@ def list_cards(cursor, user_id):
 # Function to add beneficiary
 def add_beneficiary(cursor, connection, user_id):
     beneficiary_name = input("Enter beneficiary name: ")
-    account_number = input("Enter account number: ")
+    while True:
+        account_number = input("Enter account number: ")
+        if not validate_account_number(account_number):
+            print("Invalid account number. Account number should be exactly 12 digits and contain only numbers.")
+            continue
+        else:
+            break
     bank_name = input("Enter bank name: ")
     query = "INSERT INTO Beneficiaries (user_id, beneficiary_name, account_number, bank_name) VALUES (%s, %s, %s, %s)"
     data = (user_id, beneficiary_name, account_number, bank_name)
     cursor.execute(query, data)
     connection.commit()
     print("Beneficiary added successfully.")
-
+    
 # Function to update account info
 def update_account_info(cursor, connection, user_id):
     new_address = input("Enter new address: ")
@@ -141,14 +209,28 @@ def transfer_funds(cursor, connection, user_id):
 
 
 # Function to change MPIN
-def change_mpin(cursor, connection, user_id):
-    card_type = input("Enter card type (debit/credit): ")
+def change_mpin(cursor, connection):
+    card_number = input("Enter card number: ")
     new_pin = input("Enter new PIN: ")
-    query = "UPDATE Cards SET pin = %s WHERE user_id = %s AND card_type = %s"
-    data = (new_pin, user_id, card_type)
-    cursor.execute(query, data)
-    connection.commit()
-    print("MPIN changed successfully.")
+    
+    # Check if the card exists in the database
+    query = "SELECT * FROM Cards WHERE card_number = %s"
+    cursor.execute(query, (card_number,))
+    card = cursor.fetchone()
+    
+    if not card:
+        print("Card not found. Please enter valid card details...")
+        
+       
+    else:
+        # Card found, update the MPIN
+        query = "UPDATE Cards SET pin = %s WHERE card_number = %s"
+        data = (new_pin, card_number)
+        cursor.execute(query, data)  #This line executes the SQL query defined in the query variable, with the values provided in the data tuple substituted into the placeholders
+        connection.commit()
+        print("MPIN changed successfully.")
+        
+ 
 
 #function to check if a card already exists
 def card_number_exists(card_number):
@@ -258,33 +340,52 @@ def account_number_exists(account_number):
         if connection:
             cursor.close()
             connection.close()
-
+            
 def register_user():
     print("Registration Process:")
-    username = input("Enter your username: ")
-    password = input("Enter your password: ")
+    while True:
+        username = input("Enter your username: ")
+        if not validate_username(username):
+            print("Invalid username. Username should not include spaces or special characters and should be limited to 15 characters.")
+            continue
+        else:
+            break
+
+    while True:
+        password = input("Enter your password: ")
+        if not validate_password(password):
+            print("Invalid password. Password should be at least 8 characters long with one special character.")
+            continue
+        else:
+            break
+
     address = input("Enter your address: ")
-    aadhar = input("Enter your Aadhar number: ")
-    mobile = input("Enter your mobile number: ")
+
+    while True:
+        aadhar = input("Enter your Aadhar number: ")
+        if not validate_aadhar(aadhar):
+            print("Invalid Aadhar number. Aadhar should be 12 digits exact and should include only numbers.")
+            continue
+        else:
+            break
+
+    while True:
+        mobile = input("Enter your mobile number: ")
+        if not validate_mobile(mobile):
+            print("Invalid mobile number. Mobile number should be 10 digits exact and only numbers.")
+            continue
+        else:
+            break
 
     # Generate credit card details
     credit_card_number = generate_card_number()
-
     credit_card_pin = generate_pin()
-    while True:
-        credit_card_cvv = generate_cvv()
-        if not cvv_exists(credit_card_cvv):
-            break
+    credit_card_cvv = generate_cvv()
 
     # Generate debit card details
     debit_card_number = generate_card_number()
     debit_card_pin = generate_pin()
-
-    # Generate unique CVV
-    while True:
-        debit_card_cvv = generate_cvv()
-        if not cvv_exists(debit_card_cvv):
-            break
+    debit_card_cvv = generate_cvv()
 
     # Generate unique account number
     account_number = generate_account_number()
@@ -305,7 +406,7 @@ def register_user():
         user_id = cursor.lastrowid
 
         # Insert account details into 'accounts' table
-        initial_balance = 0000.00
+        initial_balance = Decimal('0.00')
         account_query = "INSERT INTO Accounts (user_id, account_number, balance) VALUES (%s, %s, %s)"
         account_data = (user_id, account_number, initial_balance)
         cursor.execute(account_query, account_data)
@@ -320,20 +421,18 @@ def register_user():
         debit_card_data = (user_id, debit_card_number, debit_card_pin, debit_card_cvv)
         cursor.execute(debit_card_query, debit_card_data)
 
-    
         connection.commit()
         print("Registration successful! Please proceed to login.")
         print("Please change your pin of your cards on your next Login.")
-       
     
     except mysql.connector.Error as e:
-        print("Error registering user:Please try again.", e)
+        print("Error registering user:", e)
+        connection.rollback()
     
     finally:
         if connection:
             cursor.close()
             connection.close()
-
 
 #login function
 def login_user(cursor,connection):
@@ -354,8 +453,10 @@ def login_user(cursor,connection):
                         print("6. Transfer Funds")
                         print("7. Change MPIN")
                         print("8. Register New Credit Card")
-                        print("9. Logout")
+                        print("9. Add Funds")
+                        print("10. Logout")
                         option = input("Enter your option: ")
+            
                         if option == "1":
                             display_account_info(cursor, user_id)
                         elif option == "2":
@@ -369,10 +470,12 @@ def login_user(cursor,connection):
                         elif option == "6":
                             transfer_funds(cursor, connection, user_id)
                         elif option == "7":
-                            change_mpin(cursor, connection, user_id)
+                            change_mpin(cursor, connection)
                         elif option == "8":
                             register_new_credit_card(cursor, connection, user_id)
                         elif option == "9":
+                            add_funds(cursor, connection, user_id)
+                        elif option == "10":
                             break
                         else:
                             print("Invalid option. Please try again.")
