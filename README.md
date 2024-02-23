@@ -38,4 +38,8 @@ CREATE TABLE Transactions (
 Some glimse of the Code is Shown below.
 
 ![Screenshot from 2024-02-23 12-52-14](https://github.com/Sanjana176/Banking_Application/assets/160119835/c2abc036-768c-45dc-b57b-15e7ba5c6c32)
+![Screenshot from 2024-02-23 12-52-39](https://github.com/Sanjana176/Banking_Application/assets/160119835/5e51af41-d5ba-416c-8f50-65fcc6fc7d9a)
+![Screenshot from 2024-02-23 12-53-03](https://github.com/Sanjana176/Banking_Application/assets/160119835/a7f87661-3668-4f6e-a1b4-206c96ed12d5)
+
+
 
