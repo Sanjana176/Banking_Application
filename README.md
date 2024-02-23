@@ -16,6 +16,7 @@ datetime
 mysql.connector
 decimal
 random
+Before Running This Code in Your System Make Sure you have created the Users,Cards,Beneficiaries,Accounts and Transactions Table.
 
 Some Glimpse of the Project Shown below.
 
