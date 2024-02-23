@@ -17,4 +17,5 @@ mysql.connector
 decimal
 random
 
+![Screenshot from 2024-02-23 12-52-14](https://github.com/Sanjana176/Banking_Application/assets/160119835/afc9a113-fb9f-41f2-a759-df28b4ecfbb4)
 
