@@ -15,3 +15,5 @@ This Python-based banking application offers a robust suite of features includin
 datetime
 mysql.connector 
 decimal random
+
+Before Running This Code in Your System Make Sure you have created the User , Accounts, Cards, Beneficiaries and Transactions Table.
