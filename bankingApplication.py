@@ -2,11 +2,12 @@ from decimal import Decimal
 import mysql.connector      
 import random               
 import re
+from datetime import datetime
 
 # Connect to MySQL database
 def connect_to_database():   
     try:
-        connection = mysql.connector.connect( 
+        connection = mysql.connector.connect(  #dubt
             host="localhost",
             port="3306",
             user="root",
@@ -158,9 +159,6 @@ def update_account_info(cursor, connection, user_id):
         print("Account not found.")
 
 
-
-
-
 # Function to transfer funds
 def transfer_funds(cursor, connection, user_id):
     beneficiary_number = input("Enter beneficiary account number: ")
@@ -203,6 +201,50 @@ def transfer_funds(cursor, connection, user_id):
     print("Funds transferred successfully.")
 
 
+
+def view_transactions(cursor, user_id):
+    try:
+        # SQL query to fetch transaction details along with sender and beneficiary names for a specific user
+        query = """
+        SELECT t.transaction_id, u1.username AS sender_name, b.beneficiary_name,
+               t.amount, t.transaction_date
+        FROM Transactions t
+        INNER JOIN Users u1 ON t.sender_id = u1.id
+        INNER JOIN Beneficiaries b ON t.beneficiary_id = b.id
+        WHERE t.sender_id = %s OR t.beneficiary_id = %s
+        """
+        
+        # Execute the query with user_id as parameter
+        cursor.execute(query, (user_id, user_id))
+        
+        # Fetch all rows
+        transactions = cursor.fetchall()
+        
+        # Check if transactions are found
+        if not transactions:
+            print("No transactions found.")
+        else:
+            # Print column headers
+            print("{:<15} {:<20} {:<20} {:<10} {:<25}".format(
+                "Transaction ID", "Sender Name", "Beneficiary Name", "Amount", "Transaction Date"))
+            print("="*90)
+            
+            # Print each transaction
+            for transaction in transactions:
+                # Determine if the user is the sender or beneficiary
+                if transaction[1] == user_id:  # User is the sender
+                    user_role = "Sender"
+                else:  # User is the beneficiary
+                    user_role = "Beneficiary"
+                
+                # Format the transaction date
+                transaction_date = transaction[4].strftime("%Y-%m-%d %H:%M:%S")
+                
+                print("{:<15} {:<20} {:<20} {:<10} {:<25}".format(
+                    transaction[0], transaction[1], transaction[2], transaction[3], transaction_date))
+    
+    except mysql.connector.Error as err:
+        print("Error:", err)
 
 
 
@@ -454,7 +496,8 @@ def login_user(cursor,connection):
                         print("7. Change MPIN")
                         print("8. Register New Credit Card")
                         print("9. Add Funds")
-                        print("10. Logout")
+                        print("10. View Transactions")
+                        print("0. Logout")
                         option = input("Enter your option: ")
             
                         if option == "1":
@@ -476,6 +519,8 @@ def login_user(cursor,connection):
                         elif option == "9":
                             add_funds(cursor, connection, user_id)
                         elif option == "10":
+                            view_transactions(cursor,user_id)
+                        elif option == "0":
                             break
                         else:
                             print("Invalid option. Please try again.")
@@ -509,3 +554,6 @@ def main():
 
 
 main()
+
+
+
