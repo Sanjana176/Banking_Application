@@ -7,7 +7,7 @@ from datetime import datetime
 # Connect to MySQL database
 def connect_to_database():   
     try:
-        connection = mysql.connector.connect(  #dubt
+        connection = mysql.connector.connect(  
             host="localhost",
             port="3306",
             user="root",
@@ -25,17 +25,25 @@ def validate_aadhar(aadhar):
         return False
     return True
 
-def validate_mobile(mobile):
+'''def validate_mobile(mobile):
     # Mobile number should be 10 digits
     if not re.match(r'^\d{10}$', mobile):
         return False
-    return True
-
-def validate_username(username):
-    # Username should not include spaces or special characters, and should be limited to 15 characters
-    if not re.match(r'^[a-zA-Z0-9]{1,15}$', username):
+    return True'''
+def validate_mobile(mobile):
+    # Mobile number should be 10 digits and should not start with 0
+    if not re.match(r'^[1-9]\d{9}$', mobile):
         return False
     return True
+
+
+
+def validate_username(username):
+    # Username should not include special characters, should not contain integers, and should be limited to 15 characters per name
+    if not re.match(r'^[a-zA-Z ]{1,15}(?: [a-zA-Z ]{1,15})?$', username):
+        return False
+    return True
+
 
 def validate_account_number(account_number):
     # Account number should be exactly 12 digits and contain only numbers
