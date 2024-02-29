@@ -52,13 +52,26 @@ def validate_account_number(account_number):
     return True
 
 def validate_password(password):
-    # Password should be at least 8 characters long and contain at least one special character
+    # Password should be at least 8 characters long, contain at least one special character, and not contain any spaces
     if len(password) < 8:
         return False
-    # Updated regular expression to allow any characters
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         return False
+    if ' ' in password:
+        return False
     return True
+
+def mobile_number_exists(cursor, mobile):  
+    query = "SELECT COUNT(*) FROM Users WHERE mobile = %s"
+    cursor.execute(query, (mobile,))
+    count = cursor.fetchone()[0]
+    return count > 0
+
+def username_exists(cursor, username):
+    query = "SELECT COUNT(*) FROM Users WHERE username = %s"
+    cursor.execute(query, (username,))
+    count = cursor.fetchone()[0]
+    return count > 0
 
 # Function to display account info and balance
 def display_account_info(cursor, user_id):   
@@ -139,6 +152,15 @@ def add_beneficiary(cursor, connection, user_id):
             continue
         else:
             break
+    
+    # Check if the beneficiary account number already exists for this user
+    query = "SELECT COUNT(*) FROM Beneficiaries WHERE user_id = %s AND account_number = %s"
+    cursor.execute(query, (user_id, account_number))
+    count = cursor.fetchone()[0]
+    if count > 0:
+        print("Beneficiary with this account number already exists for this user.")
+        return
+    
     bank_name = input("Enter bank name: ")
     query = "INSERT INTO Beneficiaries (user_id, beneficiary_name, account_number, bank_name) VALUES (%s, %s, %s, %s)"
     data = (user_id, beneficiary_name, account_number, bank_name)
@@ -147,9 +169,17 @@ def add_beneficiary(cursor, connection, user_id):
     print("Beneficiary added successfully.")
     
 # Function to update account info
+
 def update_account_info(cursor, connection, user_id):
     new_address = input("Enter new address: ")
-    new_mobile = input("Enter new mobile number: ")
+    
+    while True:
+        new_mobile = input("Enter new mobile number: ")
+        if not validate_mobile(new_mobile):
+            print("Invalid mobile number. Mobile number should be 10 digits exact and only numbers.")
+            continue
+        else:
+            break
     
     query = "UPDATE Users SET address = %s, mobile = %s WHERE id = %s"
     data = (new_address, new_mobile, user_id)
@@ -165,12 +195,13 @@ def update_account_info(cursor, connection, user_id):
         print("Mobile:", account_info[4])
     else:
         print("Account not found.")
-
-
 # Function to transfer funds
 def transfer_funds(cursor, connection, user_id):
     beneficiary_number = input("Enter beneficiary account number: ")
     amount = Decimal(input("Enter amount to transfer: "))  # Convert amount to Decimal
+    if amount <= 0:
+            print("Invalid amount. Please enter a positive value.")
+            return
 
     # Check if the beneficiary account exists in the Beneficiaries table
     query = "SELECT * FROM Beneficiaries WHERE user_id = %s AND account_number = %s"
@@ -259,28 +290,51 @@ def view_transactions(cursor, user_id):
 
 
 # Function to change MPIN
+
 def change_mpin(cursor, connection):
     card_number = input("Enter card number: ")
-    new_pin = input("Enter new PIN: ")
-    
+
     # Check if the card exists in the database
     query = "SELECT * FROM Cards WHERE card_number = %s"
     cursor.execute(query, (card_number,))
     card = cursor.fetchone()
-    
+
     if not card:
-        print("Card not found. Please enter valid card details...")
-        
-       
-    else:
-        # Card found, update the MPIN
-        query = "UPDATE Cards SET pin = %s WHERE card_number = %s"
-        data = (new_pin, card_number)
-        cursor.execute(query, data)  #This line executes the SQL query defined in the query variable, with the values provided in the data tuple substituted into the placeholders
-        connection.commit()
-        print("MPIN changed successfully.")
-        
- 
+        print("Card not found. Please enter valid card details.")
+        return
+
+    while True:
+        new_pin = input("Enter new PIN: ")
+        if len(new_pin) != 4:
+            print("Please enter 4 digit PIN.")
+            continue
+
+        # Ensure PIN consists of only digits
+        if not new_pin.isdigit():
+            print("Invalid PIN. Please enter only digits.")
+            continue
+
+        break
+
+    while True:
+        new_cvv = input("Enter new CVV: ")
+        if len(new_cvv) != 3:
+            print("IPlease enter 3 digit CVV.")
+            continue
+
+        # Ensure CVV consists of only digits
+        if not new_cvv.isdigit():
+            print("Invalid CVV. Please enter only digits.")
+            continue
+
+        break
+
+    # Update the MPIN
+    query = "UPDATE Cards SET pin = %s, cvv = %s WHERE card_number = %s"
+    data = (new_pin, new_cvv, card_number)
+    cursor.execute(query, data)
+    connection.commit()
+    print("MPIN changed successfully.")
 
 #function to check if a card already exists
 def card_number_exists(card_number):
@@ -305,19 +359,45 @@ def card_number_exists(card_number):
 
 # Function to register new credit card
 
-# Function to register a new credit card
 def register_new_credit_card(cursor, connection, user_id):
-    card_number = input("Enter card number: ")
-    card_type = input("Enter card type (debit/credit): ")
-    cvv = input("Enter CVV: ")
-    pin = input("Enter PIN: ")
-
-    # Check if the card number already exists in the database
-    if card_number_exists(card_number):
-        print("Card already registered.")
-        return
-    
     try:
+        # Input validation for card number
+        while True:
+            card_number = input("Enter card number: ")
+            if len(card_number) == 12 and card_number.isdigit():
+                break
+            else:
+                print("Invalid card number. Please enter a 12-digit number.")
+
+        # Input validation for card type
+        while True:
+            card_type = input("Enter card type (debit/credit): ").lower()
+            if card_type in ['debit', 'credit']:
+                break
+            else:
+                print("Invalid card type. Please enter either 'debit' or 'credit'.")
+
+        # Input validation for CVV
+        while True:
+            cvv = input("Enter CVV: ")
+            if len(cvv) == 3 and cvv.isdigit():
+                break
+            else:
+                print("Invalid CVV. Please enter a 3-digit number.")
+
+        # Input validation for PIN
+        while True:
+            pin = input("Enter PIN: ")
+            if len(pin) == 4 and pin.isdigit():
+                break
+            else:
+                print("Invalid PIN. Please enter a 4-digit number.")
+
+        # Check if the card number already exists in the database
+        if card_number_exists(card_number):
+            print("Card already registered.")
+            return
+        
         # Insert the new credit card details into the 'Cards' table
         credit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, %s, %s, %s, %s)"
         credit_card_data = (user_id, card_type, card_number, pin, cvv)
@@ -396,8 +476,14 @@ def register_user():
     while True:
         username = input("Enter your username: ")
         if not validate_username(username):
-            print("Invalid username. Username should not include spaces or special characters and should be limited to 15 characters.")
+            print("Invalid username. Username should not include special characters and should be limited to 15 characters.")
             continue
+        
+        # Check if the username already exists in the database
+        connection = connect_to_database()
+        cursor = connection.cursor()
+        if username_exists(cursor, username):
+            print("Username already exists. Please choose a different username.")
         else:
             break
 
@@ -424,6 +510,12 @@ def register_user():
         if not validate_mobile(mobile):
             print("Invalid mobile number. Mobile number should be 10 digits exact and only numbers.")
             continue
+        
+        # Check if the mobile number already exists in the database
+        connection = connect_to_database()
+        cursor = connection.cursor()
+        if mobile_number_exists(cursor, mobile):
+            print("Mobile number already registered. Please enter a different mobile number.")
         else:
             break
 
@@ -562,6 +654,3 @@ def main():
 
 
 main()
-
-
-
