@@ -3,6 +3,8 @@ import mysql.connector
 import random               
 import re
 from datetime import datetime
+import hashlib
+import getpass
 
 # Connect to MySQL database
 def connect_to_database():   
@@ -24,6 +26,12 @@ def validate_aadhar(aadhar):
     if not re.match(r'^\d{12}$', aadhar):
         return False
     return True
+    
+def aadhar_exists(cursor, aadhar):
+    query = "SELECT COUNT(*) FROM Users WHERE aadhar = %s"
+    cursor.execute(query, (aadhar,))
+    count = cursor.fetchone()[0]
+    return count > 0
 
 '''def validate_mobile(mobile):
     # Mobile number should be 10 digits
@@ -52,15 +60,17 @@ def validate_account_number(account_number):
     return True
 
 def validate_password(password):
-    # Password should be at least 8 characters long, contain at least one special character, and not contain any spaces
+    # Password should be at least 8 characters long, contain at least one special character,
+    # and not contain any spaces except for valid spaces
     if len(password) < 8:
         return False
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         return False
-    if ' ' in password:
-        return False
+    if ' ' in password.strip():  # Check for spaces, excluding leading and trailing spaces
+        return False  # Return False if password contains spaces
     return True
 
+    
 def mobile_number_exists(cursor, mobile):  
     query = "SELECT COUNT(*) FROM Users WHERE mobile = %s"
     cursor.execute(query, (mobile,))
@@ -329,13 +339,17 @@ def change_mpin(cursor, connection):
 
         break
 
+    # Hash new CVV and PIN
+    hashed_new_pin = hashlib.sha256(new_pin.encode()).hexdigest()
+    hashed_new_cvv = hashlib.sha256(new_cvv.encode()).hexdigest()
+
     # Update the MPIN
     query = "UPDATE Cards SET pin = %s, cvv = %s WHERE card_number = %s"
-    data = (new_pin, new_cvv, card_number)
+    data = (hashed_new_pin, hashed_new_cvv, card_number)
     cursor.execute(query, data)
     connection.commit()
     print("MPIN changed successfully.")
-
+    
 #function to check if a card already exists
 def card_number_exists(card_number):
     try:
@@ -393,6 +407,10 @@ def register_new_credit_card(cursor, connection, user_id):
             else:
                 print("Invalid PIN. Please enter a 4-digit number.")
 
+        # Hash CVV and PIN using SHA-256
+        hashed_cvv = hashlib.sha256(cvv.encode()).hexdigest()
+        hashed_pin = hashlib.sha256(pin.encode()).hexdigest()
+
         # Check if the card number already exists in the database
         if card_number_exists(card_number):
             print("Card already registered.")
@@ -400,14 +418,14 @@ def register_new_credit_card(cursor, connection, user_id):
         
         # Insert the new credit card details into the 'Cards' table
         credit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, %s, %s, %s, %s)"
-        credit_card_data = (user_id, card_type, card_number, pin, cvv)
+        credit_card_data = (user_id, card_type, card_number, hashed_pin, hashed_cvv)
         cursor.execute(credit_card_query, credit_card_data)
         connection.commit()
         print("New credit card registered successfully.")
     
     except mysql.connector.Error as e:
         print("Error registering new credit card:", e)
-
+        
 # Function to generate a random 12-digit card number
 def generate_card_number():
     while True:
@@ -471,12 +489,14 @@ def account_number_exists(account_number):
             cursor.close()
             connection.close()
             
+import getpass
+
 def register_user():
     print("Registration Process:")
     while True:
         username = input("Enter your username: ")
         if not validate_username(username):
-            print("Invalid username. Username should not include special characters and should be limited to 15 characters.")
+            print("Invalid username. Username should not include spaces or special characters and should be limited to 15 characters.")
             continue
         
         # Check if the username already exists in the database
@@ -484,146 +504,146 @@ def register_user():
         cursor = connection.cursor()
         if username_exists(cursor, username):
             print("Username already exists. Please choose a different username.")
-        else:
-            break
-
-    while True:
-        password = input("Enter your password: ")
-        if not validate_password(password):
-            print("Invalid password. Password should be at least 8 characters long with one special character.")
-            continue
-        else:
-            break
-
-    address = input("Enter your address: ")
-
-    while True:
-        aadhar = input("Enter your Aadhar number: ")
-        if not validate_aadhar(aadhar):
-            print("Invalid Aadhar number. Aadhar should be 12 digits exact and should include only numbers.")
-            continue
-        else:
-            break
-
-    while True:
-        mobile = input("Enter your mobile number: ")
-        if not validate_mobile(mobile):
-            print("Invalid mobile number. Mobile number should be 10 digits exact and only numbers.")
-            continue
+            continue  # Continue to the beginning of the loop to prompt for username again
         
-        # Check if the mobile number already exists in the database
-        connection = connect_to_database()
-        cursor = connection.cursor()
-        if mobile_number_exists(cursor, mobile):
-            print("Mobile number already registered. Please enter a different mobile number.")
-        else:
-            break
+        # Prompt for password with masking
+        password = getpass.getpass("Enter your password: ")
 
-    # Generate credit card details
-    credit_card_number = generate_card_number()
-    credit_card_pin = generate_pin()
-    credit_card_cvv = generate_cvv()
+        address = input("Enter your address: ")
 
-    # Generate debit card details
-    debit_card_number = generate_card_number()
-    debit_card_pin = generate_pin()
-    debit_card_cvv = generate_cvv()
+        while True:
+            aadhar = input("Enter your Aadhar number: ")
+            if not validate_aadhar(aadhar):
+                print("Invalid Aadhar number. Aadhar should be 12 digits exact and should include only numbers.")
+                continue
+            else:
+                # Check if the Aadhar number already exists in the database
+                if aadhar_exists(cursor, aadhar):
+                    print("Aadhar number already registered. Please enter a different Aadhar number.")
+                    continue  # Continue to the beginning of the loop to prompt for Aadhar number again
+                break
 
-    # Generate unique account number
-    account_number = generate_account_number()
-     
-    #initial bank balance will be zero
-    
-    # Save user, account, and card details to the database
-    try:
-        connection = connect_to_database()
-        cursor = connection.cursor()
+        while True:
+            mobile = input("Enter your mobile number: ")
+            if not validate_mobile(mobile):
+                print("Invalid mobile number. Mobile number should be 10 digits exact and only numbers.")
+                continue
+            
+            # Check if the mobile number already exists in the database
+            if mobile_number_exists(cursor, mobile):
+                print("Mobile number already registered. Please enter a different mobile number.")
+                continue  # Continue to the beginning of the loop to prompt for mobile number again
+            else:
+                break
 
-        # Insert user details into 'users' table
-        user_query = "INSERT INTO Users (username, password, address, aadhar, mobile) VALUES (%s, %s, %s, %s, %s)"
-        user_data = (username, password, address, aadhar, mobile)
-        cursor.execute(user_query, user_data)
+        # Generate credit card details
+        credit_card_number = generate_card_number()
+        credit_card_pin = generate_pin()
+        credit_card_cvv = generate_cvv()
 
-        # Retrieve the user_id of the newly inserted user
-        user_id = cursor.lastrowid
+        # Generate debit card details
+        debit_card_number = generate_card_number()
+        debit_card_pin = generate_pin()
+        debit_card_cvv = generate_cvv()
 
-        # Insert account details into 'accounts' table
-        initial_balance = Decimal('0.00')
-        account_query = "INSERT INTO Accounts (user_id, account_number, balance) VALUES (%s, %s, %s)"
-        account_data = (user_id, account_number, initial_balance)
-        cursor.execute(account_query, account_data)
+        # Generate unique account number
+        account_number = generate_account_number()
+         
+        #initial bank balance will be zero
+        
+        # Save user, account, and card details to the database
+        try:
+            # Insert user details into 'users' table
+            hashed_password = hashlib.sha256(password.encode()).hexdigest()
+            user_query = "INSERT INTO Users (username, password, address, aadhar, mobile) VALUES (%s, %s, %s, %s, %s)"
+            user_data = (username, hashed_password, address, aadhar, mobile)
+            cursor.execute(user_query, user_data)
 
-        # Insert credit card details into 'cards' table
-        credit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, 'credit', %s, %s, %s)"
-        credit_card_data = (user_id, credit_card_number, credit_card_pin, credit_card_cvv)
-        cursor.execute(credit_card_query, credit_card_data)
+            # Retrieve the user_id of the newly inserted user
+            user_id = cursor.lastrowid
 
-        # Insert debit card details into 'cards' table
-        debit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, 'debit', %s, %s, %s)"
-        debit_card_data = (user_id, debit_card_number, debit_card_pin, debit_card_cvv)
-        cursor.execute(debit_card_query, debit_card_data)
+            # Insert account details into 'accounts' table
+            initial_balance = Decimal('0.00')
+            account_query = "INSERT INTO Accounts (user_id, account_number, balance) VALUES (%s, %s, %s)"
+            account_data = (user_id, account_number, initial_balance)
+            cursor.execute(account_query, account_data)
 
-        connection.commit()
-        print("Registration successful! Please proceed to login.")
-        print("Please change your pin of your cards on your next Login.")
-    
-    except mysql.connector.Error as e:
-        print("Error registering user:", e)
-        connection.rollback()
-    
-    finally:
-        if connection:
-            cursor.close()
-            connection.close()
+            # Insert credit card details into 'cards' table
+            credit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, 'credit', %s, %s, %s)"
+            credit_card_data = (user_id, credit_card_number, credit_card_pin, credit_card_cvv)
+            cursor.execute(credit_card_query, credit_card_data)
+
+            # Insert debit card details into 'cards' table
+            debit_card_query = "INSERT INTO Cards (user_id, card_type, card_number, pin, cvv) VALUES (%s, 'debit', %s, %s, %s)"
+            debit_card_data = (user_id, debit_card_number, debit_card_pin, debit_card_cvv)
+            cursor.execute(debit_card_query, debit_card_data)
+
+            connection.commit()
+            print("Registration successful! Please proceed to login.")
+            print("Please change your pin of your cards on your next Login.")
+            break  # Exit the loop after successful registration
+        
+        except mysql.connector.Error as e:
+            print("Error registering user:", e)
+            connection.rollback()
+        
+        finally:
+            if connection:
+                cursor.close()
+                connection.close()
+
+
+
 
 #login function
 def login_user(cursor,connection):
     u = input("Enter Your Username : ")
-    p = input("Enter Your Password : ")
+    p = getpass.getpass("Enter Your Password : ")  # Using getpass to hide password input
+    hashed_password = hashlib.sha256(p.encode()).hexdigest()
     query = "SELECT * FROM Users WHERE username=%s AND password=%s"
-    cursor.execute(query, (u, p))
+    cursor.execute(query, (u, hashed_password))
     data = cursor.fetchall()
     if data:
         user_id = data[0][0]
         
         while True:
-                        print("\n1. Display Account Info")
-                        print("2. List Beneficiaries")
-                        print("3. List Cards")
-                        print("4. Add Beneficiary")
-                        print("5. Update Account Info")
-                        print("6. Transfer Funds")
-                        print("7. Change MPIN")
-                        print("8. Register New Credit Card")
-                        print("9. Add Funds")
-                        print("10. View Transactions")
-                        print("0. Logout")
-                        option = input("Enter your option: ")
+            print("\n1. Display Account Info")
+            print("2. List Beneficiaries")
+            print("3. List Cards")
+            print("4. Add Beneficiary")
+            print("5. Update Account Info")
+            print("6. Transfer Funds")
+            print("7. Change MPIN")
+            print("8. Register New Credit Card")
+            print("9. Add Funds")
+            print("10. View Transactions")
+            print("0. Logout")
+            option = input("Enter your option: ")
             
-                        if option == "1":
-                            display_account_info(cursor, user_id)
-                        elif option == "2":
-                            list_beneficiaries(cursor, user_id)
-                        elif option == "3":
-                            list_cards(cursor, user_id)
-                        elif option == "4":
-                            add_beneficiary(cursor,connection, user_id)
-                        elif option == "5":
-                            update_account_info(cursor, connection, user_id)
-                        elif option == "6":
-                            transfer_funds(cursor, connection, user_id)
-                        elif option == "7":
-                            change_mpin(cursor, connection)
-                        elif option == "8":
-                            register_new_credit_card(cursor, connection, user_id)
-                        elif option == "9":
-                            add_funds(cursor, connection, user_id)
-                        elif option == "10":
-                            view_transactions(cursor,user_id)
-                        elif option == "0":
-                            break
-                        else:
-                            print("Invalid option. Please try again.")
+            if option == "1":
+                display_account_info(cursor, user_id)
+            elif option == "2":
+                list_beneficiaries(cursor, user_id)
+            elif option == "3":
+                list_cards(cursor, user_id)
+            elif option == "4":
+                add_beneficiary(cursor,connection, user_id)
+            elif option == "5":
+                update_account_info(cursor, connection, user_id)
+            elif option == "6":
+                transfer_funds(cursor, connection, user_id)
+            elif option == "7":
+                change_mpin(cursor, connection)
+            elif option == "8":
+                register_new_credit_card(cursor, connection, user_id)
+            elif option == "9":
+                add_funds(cursor, connection, user_id)
+            elif option == "10":
+                view_transactions(cursor,user_id)
+            elif option == "0":
+                break
+            else:
+                print("Invalid option. Please try again.")
     else:
         print("Invalid username or password.")
         return False  # Return False if login fails
